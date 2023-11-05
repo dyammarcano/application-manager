@@ -1,8 +1,8 @@
 package main
 
 import (
-	"github.com/dyammarcano/template-go/cmd"
-	"github.com/dyammarcano/template-go/internal/application"
+	"github.com/dyammarcano/application-manager/cmd"
+	"github.com/dyammarcano/application-manager/internal/application"
 )
 
 var (

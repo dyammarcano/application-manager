@@ -1,7 +1,7 @@
 package cmd
 
 import (
-	"github.com/dyammarcano/template-go/internal/application"
+	"github.com/dyammarcano/application-manager/internal/application"
 	"github.com/spf13/cobra"
 )
 

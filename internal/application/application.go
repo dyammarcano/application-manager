@@ -3,11 +3,9 @@ package application
 import (
 	"context"
 	"fmt"
-	"github.com/dyammarcano/template-go/internal/metadata"
-	"github.com/dyammarcano/template-go/internal/service"
+	"github.com/dyammarcano/application-manager/internal/metadata"
+	"github.com/dyammarcano/application-manager/internal/service"
 	"github.com/spf13/cobra"
-	"github.com/spf13/viper"
-	"log"
 	"os"
 	"os/signal"
 	"runtime"
@@ -49,7 +47,6 @@ func NewApplicationManager(version, commitHash, date string) *Application {
 		},
 	}
 
-	app.initConfig()
 	AppVersion = app.metadata
 
 	go func() {
@@ -63,18 +60,6 @@ func NewApplicationManager(version, commitHash, date string) *Application {
 	app.errorsHandler()
 
 	return app
-}
-
-// initConfig reads in config file and ENV variables if set.
-func (a *Application) initConfig() {
-	viper.AddConfigPath(".")
-	viper.SetConfigName("app")
-	viper.SetConfigType("env")
-	viper.AutomaticEnv()
-
-	if err := viper.ReadInConfig(); err != nil {
-		log.Println("Environment variables not found in: ", viper.ConfigFileUsed())
-	}
 }
 
 // Start Execute uses the args (os.Args[1:] by default) and run services

@@ -1,4 +1,4 @@
-module github.com/dyammarcano/template-go
+module github.com/dyammarcano/application-manager
 
 go 1.21
 
