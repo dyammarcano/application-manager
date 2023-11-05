@@ -4,7 +4,7 @@ import (
 	"bytes"
 	"context"
 	"fmt"
-	"github.com/dyammarcano/application-manager/internal/encoding"
+	"github.com/dyammarcano/application-manager/internal/algorithm/encoding"
 	"github.com/dyammarcano/application-manager/internal/metadata"
 	"github.com/dyammarcano/application-manager/internal/service"
 	"github.com/spf13/cobra"
