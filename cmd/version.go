@@ -1,8 +1,7 @@
 package cmd
 
 import (
-	"github.com/dyammarcano/template-go/internal/cmd"
-
+	"github.com/dyammarcano/template-go/internal/application"
 	"github.com/spf13/cobra"
 )
 
@@ -15,7 +14,13 @@ and usage of using your command. For example:
 Cobra is a CLI library for Go that empowers applications.
 This application is a tool to generate the needed files
 to quickly create a Cobra application.`,
-	Run: cmd.PrintVersion,
+	Run: func(cmd *cobra.Command, args []string) {
+		ver, err := application.AppVersion()
+		if err != nil {
+			panic(err)
+		}
+		cmd.Println(ver)
+	},
 }
 
 func init() {

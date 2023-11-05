@@ -2,7 +2,7 @@ package main
 
 import (
 	"github.com/dyammarcano/template-go/cmd"
-	"github.com/dyammarcano/template-go/internal/metadata"
+	"github.com/dyammarcano/template-go/internal/application"
 )
 
 var (
@@ -12,7 +12,7 @@ var (
 )
 
 func init() {
-	metadata.Set(Version, CommitHash, Date)
+	application.Init(Version, CommitHash, Date)
 }
 
 func main() {
