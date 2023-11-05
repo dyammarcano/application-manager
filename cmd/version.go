@@ -1,7 +1,9 @@
 package cmd
 
 import (
+	"context"
 	"github.com/dyammarcano/application-manager/internal/application"
+	"github.com/dyammarcano/application-manager/internal/service"
 	"github.com/spf13/cobra"
 )
 
@@ -15,10 +17,15 @@ Cobra is a CLI library for Go that empowers applications.
 This application is a tool to generate the needed files
 to quickly create a Cobra application.`,
 	Run: func(cmd *cobra.Command, args []string) {
-		application.AppVersion.String()
+		service.RegisterService("version", versionCall)
 	},
 }
 
 func init() {
 	rootCmd.AddCommand(versionCmd)
+}
+
+func versionCall(ctx context.Context) error {
+	application.AppVersion.String()
+	return nil
 }

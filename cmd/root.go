@@ -19,3 +19,8 @@ to quickly create a Cobra application.`,
 func Execute(manager *application.Application) {
 	manager.Start(rootCmd)
 }
+
+func init() {
+	//rootCmd.Flags().StringVar(&application.CfgFile, "config", "", "config file")
+	//rootCmd.Flags().StringVar(&application.CfgString, "config-string", "", "config string")
+}

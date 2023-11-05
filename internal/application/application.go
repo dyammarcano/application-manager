@@ -1,11 +1,15 @@
 package application
 
 import (
+	"bytes"
 	"context"
 	"fmt"
+	"github.com/dyammarcano/application-manager/internal/encoding"
 	"github.com/dyammarcano/application-manager/internal/metadata"
 	"github.com/dyammarcano/application-manager/internal/service"
 	"github.com/spf13/cobra"
+	"github.com/spf13/viper"
+	"log"
 	"os"
 	"os/signal"
 	"runtime"
@@ -13,16 +17,19 @@ import (
 	"syscall"
 )
 
-var AppVersion *metadata.Metadata
+var (
+	AppVersion *metadata.Metadata
+	CfgFile    string
+	CfgString  string
+)
 
 type (
 	Application struct {
-		errChan       chan error
-		ctx           context.Context
-		ccf           context.CancelCauseFunc
-		wGroup        sync.WaitGroup
-		errorsRunning bool
-		metadata      *metadata.Metadata
+		errChan  chan error
+		ctx      context.Context
+		ccf      context.CancelCauseFunc
+		wGroup   sync.WaitGroup
+		metadata *metadata.Metadata
 	}
 )
 
@@ -65,7 +72,6 @@ func NewApplicationManager(version, commitHash, date string) *Application {
 // Start Execute uses the args (os.Args[1:] by default) and run services
 func (a *Application) Start(cmd *cobra.Command) {
 	a.errChan <- cmd.ExecuteContext(a.ctx)
-
 	a.runServices()
 }
 
@@ -76,7 +82,7 @@ func (a *Application) executeInGoRoutine(fn service.Runner) {
 	go func() {
 		defer a.wGroup.Done()
 
-		a.errChan <- fn()
+		a.errChan <- fn(a.ctx)
 	}()
 }
 
@@ -84,12 +90,30 @@ func (a *Application) executeInGoRoutine(fn service.Runner) {
 func (a *Application) runServices() {
 	services := service.GetServices()
 	if len(services) > 0 {
-		for name, runner := range services {
-			fmt.Printf("Starting service: %s\n", name)
-			a.executeInGoRoutine(runner)
+		a.chooseConfig()
+		for name := range services {
+			if runner, exist := services[name]; exist {
+				a.executeInGoRoutine(runner)
+			}
 		}
 		a.wGroup.Wait()
 	}
+}
+
+func (a *Application) chooseConfig() {
+	if CfgString != "" {
+		if err := a.stringConfig(CfgString); err != nil {
+			a.ccf(err)
+		}
+		return
+	}
+
+	if CfgFile == "" {
+		a.loadConfigFileEnv()
+		return
+	}
+
+	a.loadConfigFile()
 }
 
 // errorsHandler handles the errors in the error channel
@@ -107,4 +131,38 @@ func (a *Application) errorsHandler() {
 			}
 		}
 	}()
+}
+
+func (a *Application) loadConfigFileEnv() {
+	viper.AddConfigPath(".")
+	viper.SetConfigName("app")
+	viper.SetConfigType("env")
+	viper.AutomaticEnv()
+
+	if err := viper.ReadInConfig(); err == nil {
+		log.Printf("Using config file: %s\n", viper.ConfigFileUsed())
+	}
+}
+
+func (a *Application) loadConfigFile() {
+	viper.SetConfigFile(CfgFile)
+	viper.AutomaticEnv()
+
+	if err := viper.ReadInConfig(); err == nil {
+		log.Printf("Using config file: %s\n", viper.ConfigFileUsed())
+	}
+}
+
+func (a *Application) stringConfig(data string) error {
+	deserialized, err := encoding.Deserialize(data)
+	if err != nil {
+		return err
+	}
+
+	viper.SetConfigType("json")
+	if err = viper.ReadConfig(bytes.NewBuffer([]byte(deserialized))); err != nil {
+		return err
+	}
+
+	return nil
 }
