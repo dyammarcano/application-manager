@@ -1,26 +1,26 @@
 package cmd
 
 import (
-	"github.com/dyammarcano/application-manager/internal/application"
+	"github.com/dyammarcano/application-manager/internal/service"
 	"github.com/spf13/cobra"
 )
 
 var rootCmd = &cobra.Command{
 	Use:   "template-go",
-	Short: "A brief description of your application",
+	Short: "A brief description of your service",
 	Long: `A longer description that spans multiple lines and likely contains
-examples and usage of using your application. For example:
+examples and usage of using your service. For example:
 
 Cobra is a CLI library for Go that empowers applications.
-This application is a tool to generate the needed files
-to quickly create a Cobra application.`,
+This service is a tool to generate the needed files
+to quickly create a Cobra service.`,
 }
 
-func Execute(manager *application.Application) {
-	manager.Start(rootCmd)
+func Execute() {
+	service.Start(rootCmd)
 }
 
 func init() {
-	//rootCmd.Flags().StringVar(&application.CfgFile, "config", "", "config file")
-	//rootCmd.Flags().StringVar(&application.CfgString, "config-string", "", "config string")
+	//rootCmd.Flags().StringVar(&service.CfgFile, "config", "", "config file")
+	//rootCmd.Flags().StringVar(&service.CfgString, "config-string", "", "config string")
 }

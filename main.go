@@ -2,7 +2,7 @@ package main
 
 import (
 	"github.com/dyammarcano/application-manager/cmd"
-	"github.com/dyammarcano/application-manager/internal/application"
+	"github.com/dyammarcano/application-manager/internal/service"
 )
 
 var (
@@ -12,6 +12,6 @@ var (
 )
 
 func main() {
-	manager := application.NewApplicationManager(Version, CommitHash, Date)
-	cmd.Execute(manager)
+	service.Init(Version, CommitHash, Date)
+	cmd.Execute()
 }
