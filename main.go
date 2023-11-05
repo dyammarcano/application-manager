@@ -11,10 +11,7 @@ var (
 	Date       string
 )
 
-func init() {
-	application.Init(Version, CommitHash, Date)
-}
-
 func main() {
-	cmd.Execute()
+	manager := application.NewApplicationManager(Version, CommitHash, Date)
+	cmd.Execute(manager)
 }

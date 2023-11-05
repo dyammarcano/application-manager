@@ -16,6 +16,6 @@ This application is a tool to generate the needed files
 to quickly create a Cobra application.`,
 }
 
-func Execute() {
-	application.ExecuteCommand(rootCmd)
+func Execute(manager *application.Application) {
+	manager.Start(rootCmd)
 }

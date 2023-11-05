@@ -3,8 +3,8 @@ package cmd
 import (
 	"encoding/json"
 	"fmt"
-	"github.com/dyammarcano/template-go/internal/application"
 	"github.com/dyammarcano/template-go/internal/helpers"
+	"github.com/dyammarcano/template-go/internal/service"
 	"io"
 	"net/http"
 	"runtime/trace"
@@ -35,7 +35,7 @@ Cobra is a CLI library for Go that empowers applications.
 This application is a tool to generate the needed files
 to quickly create a Cobra application.`,
 	Run: func(cmd *cobra.Command, args []string) {
-		application.RegisterService("client api", func() error {
+		service.RegisterService("client api", func() error {
 			apiUrl, err := helpers.GetString("url")
 			if err != nil {
 				return err

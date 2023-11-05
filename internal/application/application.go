@@ -2,11 +2,12 @@ package application
 
 import (
 	"context"
-	"encoding/json"
-	"errors"
 	"fmt"
+	"github.com/dyammarcano/template-go/internal/metadata"
+	"github.com/dyammarcano/template-go/internal/service"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
+	"log"
 	"os"
 	"os/signal"
 	"runtime"
@@ -14,62 +15,57 @@ import (
 	"syscall"
 )
 
-var app *Application
+var AppVersion *metadata.Metadata
 
 type (
-	ServiceRunner func() error
-
 	Application struct {
-		services      map[string]ServiceRunner
 		errChan       chan error
-		sigChan       chan os.Signal
 		ctx           context.Context
 		ccf           context.CancelCauseFunc
 		wGroup        sync.WaitGroup
-		metadata      Metadata
 		errorsRunning bool
-	}
-
-	Metadata struct {
-		ApplicationVersion string  `json:"application_version"`
-		CommitHash         string  `json:"commit_hash"`
-		GoVersion          string  `json:"go_version"`
-		ReleaseDate        string  `json:"release_date"`
-		CommitTag          string  `json:"commit_tag"`
-		Runtime            Runtime `json:"runtime"`
-	}
-
-	Runtime struct {
-		Arch string `json:"arch"`
-		Goos string `json:"goos"`
+		metadata      *metadata.Metadata
 	}
 )
 
-func newApp(version, commitHash, date string) {
-	if app == nil {
-		ctx, ccf := context.WithCancelCause(context.Background())
+// NewApplicationManager creates a new application manager
+func NewApplicationManager(version, commitHash, date string) *Application {
+	ctx, ccf := context.WithCancelCause(context.Background())
 
-		app = &Application{
-			services: make(map[string]ServiceRunner),
-			errChan:  make(chan error),
-			sigChan:  make(chan os.Signal),
-			ctx:      ctx,
-			ccf:      ccf,
-			metadata: Metadata{
-				GoVersion:          runtime.Version(),
-				ReleaseDate:        date,
-				CommitHash:         commitHash,
-				ApplicationVersion: version,
-				Runtime: Runtime{
-					Arch: runtime.GOARCH,
-					Goos: runtime.GOOS,
-				},
+	app := &Application{
+		errChan: make(chan error),
+		wGroup:  sync.WaitGroup{},
+		ctx:     ctx,
+		ccf:     ccf,
+		metadata: &metadata.Metadata{
+			GoVersion:          runtime.Version(),
+			ReleaseDate:        date,
+			CommitHash:         commitHash,
+			ApplicationVersion: version,
+			Runtime: &metadata.Runtime{
+				Arch: runtime.GOARCH,
+				Goos: runtime.GOOS,
 			},
-		}
-		signal.Notify(app.sigChan, syscall.SIGINT, syscall.SIGTERM)
+		},
 	}
+
+	app.initConfig()
+	AppVersion = app.metadata
+
+	go func() {
+		sigChan := make(chan os.Signal)
+		signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
+
+		<-sigChan
+		os.Exit(1)
+	}()
+
+	app.errorsHandler()
+
+	return app
 }
 
+// initConfig reads in config file and ENV variables if set.
 func (a *Application) initConfig() {
 	viper.AddConfigPath(".")
 	viper.SetConfigName("app")
@@ -77,26 +73,19 @@ func (a *Application) initConfig() {
 	viper.AutomaticEnv()
 
 	if err := viper.ReadInConfig(); err != nil {
-		fmt.Println("Environment variables not found in: ", viper.ConfigFileUsed())
+		log.Println("Environment variables not found in: ", viper.ConfigFileUsed())
 	}
 }
 
-func (a *Application) registerService(serviceName string, runner ServiceRunner) {
-	a.services[serviceName] = runner
-}
-
-func (a *Application) execute(cmd *cobra.Command) {
+// Start Execute uses the args (os.Args[1:] by default) and run services
+func (a *Application) Start(cmd *cobra.Command) {
 	a.errChan <- cmd.ExecuteContext(a.ctx)
 
-	a.initConfig()
-	a.errChan <- a.runServices()
+	a.runServices()
 }
 
-func (a *Application) waitGroupsToFinish() {
-	a.wGroup.Wait()
-}
-
-func (a *Application) executeInGoRoutine(fn ServiceRunner) {
+// executeInGoRoutine executes a service in a go routine and returns the error in the error channel
+func (a *Application) executeInGoRoutine(fn service.Runner) {
 	a.wGroup.Add(1)
 
 	go func() {
@@ -106,27 +95,21 @@ func (a *Application) executeInGoRoutine(fn ServiceRunner) {
 	}()
 }
 
-func (a *Application) runServices() error {
-	if len(a.services) == 0 {
-		return errors.New("no services to run")
+// runServices executes all the services registered in the application
+func (a *Application) runServices() {
+	services := service.GetServices()
+	if len(services) > 0 {
+		for name, runner := range services {
+			fmt.Printf("Starting service: %s\n", name)
+			a.executeInGoRoutine(runner)
+		}
+		a.wGroup.Wait()
 	}
-
-	for name, runner := range a.services {
-		fmt.Printf("Starting service: %s\n", name)
-		a.executeInGoRoutine(runner)
-	}
-
-	a.waitGroupsToFinish()
-	return nil
 }
 
-func (a *Application) errors() {
-	if a.errorsRunning {
-		return
-	}
-
+// errorsHandler handles the errors in the error channel
+func (a *Application) errorsHandler() {
 	go func() {
-		a.errorsRunning = true
 		for {
 			select {
 			case err := <-a.errChan:
@@ -139,34 +122,4 @@ func (a *Application) errors() {
 			}
 		}
 	}()
-}
-
-func (a *Application) version() (string, error) {
-	d, err := json.Marshal(a.metadata)
-	if err != nil {
-		return "", err
-	}
-	return string(d) + "\n", nil
-}
-
-func AppVersion() (string, error) {
-	if app == nil {
-		return "", fmt.Errorf("application not initialized")
-	}
-
-	return app.version()
-}
-
-func RegisterService(serviceName string, runner ServiceRunner) {
-	app.registerService(serviceName, runner)
-}
-
-func Init(version, commitHash, date string) {
-	newApp(version, commitHash, date)
-
-	app.errors()
-}
-
-func ExecuteCommand(cmd *cobra.Command) {
-	app.execute(cmd)
 }
