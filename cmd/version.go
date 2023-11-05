@@ -21,10 +21,10 @@ to quickly create a Cobra service.`,
 }
 
 func init() {
-	rootCmd.AddCommand(versionCmd)
+	RootCmd.AddCommand(versionCmd)
 }
 
-func versionCall(ctx context.Context) error {
+func versionCall(_ context.Context) error {
 	service.AppVersion().String()
 	return nil
 }

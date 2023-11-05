@@ -23,13 +23,13 @@ to quickly create a Cobra service.`,
 }
 
 func init() {
-	rootCmd.AddCommand(clientCmd)
+	RootCmd.AddCommand(clientCmd)
 
 	clientCmd.PersistentFlags().StringVar(&service.CfgFile, "config", "", "config file")
 	clientCmd.PersistentFlags().StringVar(&service.CfgString, "config-string", "", "config string")
 }
 
-func callClient(ctx context.Context) error {
+func callClient(_ context.Context) error {
 	fmt.Printf("client api: %v\n", time.Now().UTC())
 	return nil
 }

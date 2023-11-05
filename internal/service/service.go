@@ -47,8 +47,8 @@ type (
 	}
 )
 
-// Init creates a new service manager
-func Init(version, commitHash, date string) {
+// setup initializes the service manager
+func setup(version, commitHash, date string) {
 	ctx, ccf := context.WithCancelCause(context.Background())
 
 	svc = &Application{
@@ -58,18 +58,16 @@ func Init(version, commitHash, date string) {
 		ccf:      ccf,
 		services: make(map[string]Runner),
 		mutex:    sync.Mutex{},
-		metadata: &metadata.Metadata{
-			GoVersion:          runtime.Version(),
-			ReleaseDate:        date,
-			CommitHash:         commitHash,
-			ApplicationVersion: version,
-			Runtime: &metadata.Runtime{
-				Arch: runtime.GOARCH,
-				Goos: runtime.GOOS,
-			},
-		},
+		metadata: initMetadata(version, commitHash, date),
 	}
 
+	setupOsExitHandler()
+
+	svc.errorsHandler()
+}
+
+// setupOsExitHandler sets up the os exit handler
+func setupOsExitHandler() {
 	go func() {
 		sigChan := make(chan os.Signal)
 		signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
@@ -77,8 +75,35 @@ func Init(version, commitHash, date string) {
 		<-sigChan
 		os.Exit(1)
 	}()
+}
 
-	svc.errorsHandler()
+// initMetadata initializes the metadata
+func initMetadata(version, commitHash, date string) *metadata.Metadata {
+	return &metadata.Metadata{
+		GoVersion:          runtime.Version(),
+		ReleaseDate:        date,
+		CommitHash:         commitHash,
+		ApplicationVersion: version,
+		Runtime: &metadata.Runtime{
+			Arch: runtime.GOARCH,
+			Goos: runtime.GOOS,
+		},
+	}
+}
+
+// errAndExit prints the error and exits the service
+func errAndExit(err any) {
+	if svc == nil {
+		fmt.Println(err)
+		os.Exit(1)
+	}
+}
+
+// Execute creates a new service manager
+func Execute(version, commitHash, date string, cmd *cobra.Command) {
+	setup(version, commitHash, date)
+	svc.errChan <- cmd.ExecuteContext(svc.ctx)
+	svc.runServices()
 }
 
 // AppVersion returns the service version
@@ -93,24 +118,12 @@ func RegisterService(serviceName string, runner Runner) {
 	svc.registerService(serviceName, runner)
 }
 
-// Start Execute uses the args (os.Args[1:] by default) and run services
-func Start(cmd *cobra.Command) {
-	errAndExit("service instance is not initialized")
-	svc.start(cmd)
-}
-
 // RegisterService adds a service to the service to be executed
 func (a *Application) registerService(serviceName string, runner Runner) {
 	defer a.mutex.Unlock()
 	a.mutex.Lock()
 
 	a.services[serviceName] = runner
-}
-
-// Start Execute uses the args (os.Args[1:] by default) and run services
-func (a *Application) start(cmd *cobra.Command) {
-	a.errChan <- cmd.ExecuteContext(a.ctx)
-	a.runServices()
 }
 
 // executeInGoRoutine executes a service in a go routine and returns the error in the error channel
@@ -213,6 +226,7 @@ func (a *Application) stringConfig(data string) error {
 	return nil
 }
 
+// watchConfig watches the config file for changes
 func (a *Application) watchConfig() {
 	<-time.After(5 * time.Second)
 
@@ -221,12 +235,5 @@ func (a *Application) watchConfig() {
 		viper.OnConfigChange(func(e fsnotify.Event) {
 			fmt.Println("Config file changed:", e.Name)
 		})
-	}
-}
-
-func errAndExit(err any) {
-	if svc == nil {
-		fmt.Println(err)
-		os.Exit(1)
 	}
 }

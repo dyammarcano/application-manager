@@ -12,6 +12,5 @@ var (
 )
 
 func main() {
-	service.Init(Version, CommitHash, Date)
-	cmd.Execute()
+	service.Execute(Version, CommitHash, Date, cmd.RootCmd)
 }
