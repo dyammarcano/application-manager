@@ -18,6 +18,8 @@ type (
 	Runtime struct {
 		Arch string `json:"arch"`
 		Goos string `json:"goos"`
+		Pid  int    `json:"pid"`
+		PPid int    `json:"ppid"`
 	}
 )
 

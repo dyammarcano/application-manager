@@ -2,7 +2,6 @@ package main
 
 import (
 	"github.com/dyammarcano/application-manager/cmd"
-	"github.com/dyammarcano/application-manager/internal/application"
 )
 
 var (
@@ -12,6 +11,5 @@ var (
 )
 
 func main() {
-	manager := application.NewApplicationManager(Version, CommitHash, Date)
-	cmd.Execute(manager)
+	cmd.Execute(Version, CommitHash, Date)
 }
