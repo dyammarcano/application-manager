@@ -4,6 +4,7 @@
 
 - [x] Add file watcher to reload config on change
 - [ ] Add generate inline config
+- [x] Add logger
 - [ ] Add self update to update service
 - [ ] Add service status to check if service is running
 - [ ] Add service restart to restart service
@@ -13,7 +14,7 @@
 
 ```bash
 # Start service
-./service start or ./service start -c config.json
+./service start or ./service start -c config.json --logDir /var/log
 
 # Stop service
 ./service stop

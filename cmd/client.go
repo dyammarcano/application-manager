@@ -1,7 +1,6 @@
 package cmd
 
 import (
-	"context"
 	"fmt"
 	"github.com/dyammarcano/application-manager/internal/service"
 	"github.com/spf13/cobra"
@@ -26,7 +25,7 @@ func init() {
 	rootCmd.AddCommand(clientCmd)
 }
 
-func callClient(_ context.Context) error {
+func callClient() error {
 	fmt.Printf("client api: %v\n", time.Now().UTC())
 	return nil
 }
