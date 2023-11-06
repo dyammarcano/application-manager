@@ -23,10 +23,7 @@ to quickly create a Cobra service.`,
 }
 
 func init() {
-	RootCmd.AddCommand(clientCmd)
-
-	clientCmd.PersistentFlags().StringVar(&service.CfgFile, "config", "", "config file")
-	clientCmd.PersistentFlags().StringVar(&service.CfgString, "config-string", "", "config string")
+	rootCmd.AddCommand(clientCmd)
 }
 
 func callClient(_ context.Context) error {

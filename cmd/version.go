@@ -21,7 +21,7 @@ to quickly create a Cobra service.`,
 }
 
 func init() {
-	RootCmd.AddCommand(versionCmd)
+	rootCmd.AddCommand(versionCmd)
 }
 
 func versionCall(_ context.Context) error {

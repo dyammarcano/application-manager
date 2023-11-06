@@ -2,7 +2,6 @@ package main
 
 import (
 	"github.com/dyammarcano/application-manager/cmd"
-	"github.com/dyammarcano/application-manager/internal/service"
 )
 
 var (
@@ -12,5 +11,5 @@ var (
 )
 
 func main() {
-	service.Execute(Version, CommitHash, Date, cmd.RootCmd)
+	cmd.Execute(Version, CommitHash, Date)
 }

@@ -25,9 +25,11 @@ const (
 )
 
 var (
-	svc       *Application
-	CfgFile   string
-	CfgString string
+	svc        *Application
+	CfgFile    string
+	CfgString  string
+	ScriptFlag bool
+	LogsDir    string
 )
 
 type (
@@ -73,6 +75,7 @@ func setupOsExitHandler() {
 		signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
 
 		<-sigChan
+		log.Printf("service: [%s] exiting...", svc.metadata.ApplicationVersion)
 		os.Exit(1)
 	}()
 }
@@ -87,6 +90,8 @@ func initMetadata(version, commitHash, date string) *metadata.Metadata {
 		Runtime: &metadata.Runtime{
 			Arch: runtime.GOARCH,
 			Goos: runtime.GOOS,
+			Pid:  os.Getpid(),
+			PPid: os.Getppid(),
 		},
 	}
 }
@@ -103,6 +108,11 @@ func errAndExit(err any) {
 func Execute(version, commitHash, date string, cmd *cobra.Command) {
 	setup(version, commitHash, date)
 	svc.errChan <- cmd.ExecuteContext(svc.ctx)
+
+	if ScriptFlag == true {
+		svc.generateScript()
+	}
+
 	svc.runServices()
 }
 
@@ -118,12 +128,18 @@ func RegisterService(serviceName string, runner Runner) {
 	svc.registerService(serviceName, runner)
 }
 
+// GetContext returns global context
+func GetContext() context.Context {
+	return svc.ctx
+}
+
 // RegisterService adds a service to the service to be executed
 func (a *Application) registerService(serviceName string, runner Runner) {
 	defer a.mutex.Unlock()
 	a.mutex.Lock()
 
 	a.services[serviceName] = runner
+	log.Println("service registered: ", serviceName)
 }
 
 // executeInGoRoutine executes a service in a go routine and returns the error in the error channel
@@ -237,3 +253,48 @@ func (a *Application) watchConfig() {
 		})
 	}
 }
+
+// generateScript generates the script for the service
+func (a *Application) generateScript() {
+	for name := range a.services {
+		if _, exist := a.services[name]; exist {
+			fmt.Println("Generating script for service: ", name)
+			// generate script
+			// get service name
+			// get service config and serialize it
+			// output script to file
+		}
+	}
+}
+
+func (a *Application) checkForUpdates() {
+	// check for updates
+	// download updates
+	// install updates
+}
+
+func (a *Application) validateUpdate() {
+	// validate updates
+	// validate config
+}
+
+func (a *Application) downloadUpdate() {
+	// download updates
+	// download config
+}
+
+//func (a *Application) loadScript() {
+//	// load script
+//	// deserialize config
+//	// load config
+//}
+//
+//func (a *Application) runScript() {
+//	// run script
+//	// run service
+//}
+//
+//func (a *Application) stopScript() {
+//	// stop script
+//	// stop service
+//}
