@@ -12,6 +12,7 @@ func TestDefaultLogger(t *testing.T) {
 	Info("test")
 	Error("test")
 	Debug("test")
+	Warn("test")
 }
 
 func TestNewLogger(t *testing.T) {

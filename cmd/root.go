@@ -20,19 +20,7 @@ Cobra is a CLI library for Go that empowers applications.
 This service is a tool to generate the needed files
 to quickly create a Cobra service.`,
 	Run: func(cmd *cobra.Command, args []string) {
-		service.RegisterService("main service", func() error {
-			ticker := time.NewTicker(1 * time.Second)
-			defer ticker.Stop()
-
-			for {
-				select {
-				case <-service.Context().Done():
-					return service.Context().Err()
-				case <-ticker.C:
-					logger.InfoAndPrint(fmt.Sprintf("simulate work: %s, %v", ulid.Make(), service.GetValue("picture")))
-				}
-			}
-		})
+		service.RegisterService("main service", simulateWork)
 	},
 }
 
@@ -46,4 +34,18 @@ func init() {
 	service.AddFlag(rootCmd, "config", "", "config file")
 	service.AddFlag(rootCmd, "config-string", "", "config string")
 	service.AddFlag(rootCmd, "script", false, "script")
+}
+
+func simulateWork() error {
+	ticker := time.NewTicker(1 * time.Second)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-service.Context().Done():
+			return service.Context().Err()
+		case <-ticker.C:
+			logger.InfoAndPrint(fmt.Sprintf("simulate work: %s, config value: %v", ulid.Make(), service.GetValue("guid")))
+		}
+	}
 }

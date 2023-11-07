@@ -10,7 +10,6 @@ import (
 	"github.com/dyammarcano/application-manager/internal/metadata"
 	"github.com/fsnotify/fsnotify"
 	"github.com/spf13/cobra"
-	"github.com/spf13/pflag"
 	"github.com/spf13/viper"
 	"log"
 	"os"
@@ -64,6 +63,8 @@ func AddFlag(cmd *cobra.Command, name string, defaultValue interface{}, descript
 		cmd.PersistentFlags().Bool(name, v, description)
 	case string:
 		cmd.PersistentFlags().String(name, v, description)
+	case int, int8, int16, int32, int64:
+		cmd.PersistentFlags().Int64(name, v.(int64), description)
 	default:
 		fmt.Printf("Invalid type: %s\n", v)
 		os.Exit(1)
@@ -159,16 +160,16 @@ func (a *ManagerService) registerService(serviceName string, runner Runner) {
 	defer a.mutex.Unlock()
 
 	a.services[serviceName] = runner
-	log.Printf("service registered: [%s]\n", serviceName)
+	log.Printf("[stage 0] service registered: [%s]\n", serviceName)
 }
 
 // executeInGoRoutine executes a service in a go routine and returns the error in the error channel
 func (a *ManagerService) executeInGoRoutine(fn Runner) {
-	a.wGroup.Add(1)
-
 	go func() {
+		a.wGroup.Add(1)
 		defer a.wGroup.Done()
 
+		log.Printf("ready=1\n")
 		a.errChan <- fn()
 	}()
 }
@@ -180,7 +181,7 @@ func (a *ManagerService) runServices() {
 		a.setupLogger()
 		for name := range a.services {
 			if runner, exist := a.services[name]; exist {
-				log.Printf("starting service: [%s]\n", name)
+				log.Printf("[stage 1] starting service: [%s]\n", name)
 				a.executeInGoRoutine(runner)
 			}
 		}
@@ -249,23 +250,23 @@ func (a *ManagerService) errorsHandler() {
 
 // loadConfigFileEnv loads the config file from the environment
 func (a *ManagerService) loadConfigFileEnv() {
-	viper.AddConfigPath(".")
-	viper.SetConfigName("app")
-	viper.SetConfigType("env")
-	viper.AutomaticEnv()
+	ms.v.AddConfigPath(".")
+	ms.v.SetConfigName("app")
+	ms.v.SetConfigType("env")
+	ms.v.AutomaticEnv()
 
-	if err := viper.ReadInConfig(); err == nil {
-		log.Printf("Using config file: %s\n", viper.ConfigFileUsed())
+	if err := ms.v.ReadInConfig(); err == nil {
+		log.Printf("[stage 0] using config file: %s\n", ms.v.ConfigFileUsed())
 	}
 }
 
 // loadConfigFile loads the config file from the file system
 func (a *ManagerService) loadConfigFile(cfgFile string) {
-	viper.SetConfigFile(cfgFile)
-	viper.AutomaticEnv()
+	ms.v.SetConfigFile(cfgFile)
+	ms.v.AutomaticEnv()
 
-	if err := viper.ReadInConfig(); err == nil {
-		log.Printf("Using config file: %s\n", viper.ConfigFileUsed())
+	if err := ms.v.ReadInConfig(); err == nil {
+		log.Printf("[stage 0] using config file: %s\n", ms.v.ConfigFileUsed())
 	}
 }
 
@@ -276,8 +277,8 @@ func (a *ManagerService) stringConfig(data string) {
 		a.causeFunc(err)
 	}
 
-	viper.SetConfigType("json")
-	if err = viper.ReadConfig(bytes.NewBuffer([]byte(deserialized))); err != nil {
+	ms.v.SetConfigType("json")
+	if err = ms.v.ReadConfig(bytes.NewBuffer([]byte(deserialized))); err != nil {
 		a.causeFunc(err)
 	}
 }
@@ -287,9 +288,9 @@ func (a *ManagerService) watchConfig() {
 	<-time.After(5 * time.Second)
 
 	if ms.v.GetString("config-string") != "" {
-		viper.WatchConfig()
-		viper.OnConfigChange(func(e fsnotify.Event) {
-			fmt.Println("config file changed:", e.Name)
+		ms.v.WatchConfig()
+		ms.v.OnConfigChange(func(e fsnotify.Event) {
+			fmt.Println("[stage 0] config file changed:", e.Name)
 		})
 	}
 }
@@ -305,19 +306,6 @@ func (a *ManagerService) generateScript() {
 			// output script to file
 		}
 	}
-}
-
-// BindPFlags binds a full flag set to the configuration, using each flag's long
-// name as the config key.
-func BindPFlags(flags *pflag.FlagSet) error { return ms.BindPFlags(flags) }
-
-func (a *ManagerService) BindPFlags(flags *pflag.FlagSet) error {
-	flags.VisitAll(func(flag *pflag.Flag) {
-		if err := viper.BindPFlag(flag.Name, flag); err != nil {
-			return
-		}
-	})
-	return nil
 }
 
 func (a *ManagerService) checkForUpdates() {
