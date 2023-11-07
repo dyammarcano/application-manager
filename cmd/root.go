@@ -28,7 +28,7 @@ to quickly create a Cobra service.`,
 				case <-service.Context().Done():
 					return service.Context().Err()
 				case <-ticker.C:
-					logger.Debug(fmt.Sprintf("simulate work: %s", ulid.Make()))
+					logger.InfoAndPrint(fmt.Sprintf("simulate work: %s", ulid.Make()))
 				}
 			}
 		})
@@ -42,5 +42,5 @@ func Execute(version, commitHash, date string) {
 func init() {
 	rootCmd.PersistentFlags().StringVar(&service.CfgFile, "config", "", "config file")
 	rootCmd.PersistentFlags().StringVar(&service.CfgString, "config-str", "", "config string")
-	rootCmd.PersistentFlags().StringVar(&service.LogsDir, "logs", "", "logs directory")
+	rootCmd.PersistentFlags().StringVar(&service.LogsDir, "log-dir", "", "logs directory")
 }

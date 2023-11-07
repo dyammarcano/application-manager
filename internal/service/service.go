@@ -48,7 +48,6 @@ type (
 		services  map[string]Runner
 		mutex     sync.RWMutex
 		cfgSource cfgSource
-		zlog      *logger.ZapLogger
 		v3c       *cache.V3Cache
 	}
 )
@@ -105,10 +104,6 @@ func errAndExit(err any) {
 		fmt.Println(err)
 		os.Exit(1)
 	}
-}
-
-func Logger() *logger.ZapLogger {
-	return svc.zlog
 }
 
 func Context() context.Context {
@@ -201,18 +196,27 @@ func (a *Application) chooseConfig() {
 
 // setupLogger check if logger are set in config or by commanf flag
 func (a *Application) setupLogger() {
-	elogPath := viper.GetString("logPath")
-	if LogsDir != "" || elogPath != "" {
-		cfg := logger.NewDefaultConfig()
-		if err := cfg.SetPath(LogsDir, "", ""); err != nil {
-			a.ccf(err)
-		}
+	elogPath := viper.GetString("log-path")
+	if LogsDir != "" {
+		elogPath = LogsDir
+	}
 
-		ll, err := logger.NewLogger(cfg)
+	if elogPath == "" {
+		err := logger.NewLoggerDefault()
 		if err != nil {
 			a.ccf(err)
 		}
-		a.zlog = ll
+		return
+	}
+
+	cfg := logger.NewDefaultConfig()
+	if err := cfg.SetPath(LogsDir, "", ""); err != nil {
+		a.ccf(err)
+	}
+
+	err := logger.NewLogger(cfg)
+	if err != nil {
+		a.ccf(err)
 	}
 }
 
