@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"context"
 	"fmt"
 	"github.com/dyammarcano/application-manager/internal/logger"
 	"github.com/dyammarcano/application-manager/internal/service"
@@ -28,7 +29,7 @@ to quickly create a Cobra service.`,
 				case <-service.Context().Done():
 					return service.Context().Err()
 				case <-ticker.C:
-					logger.InfoAndPrint(fmt.Sprintf("simulate work: %s", ulid.Make()))
+					logger.InfoAndPrint(fmt.Sprintf("simulate work: %s, %v", ulid.Make(), service.GetValue("picture")))
 				}
 			}
 		})
@@ -36,11 +37,13 @@ to quickly create a Cobra service.`,
 }
 
 func Execute(version, commitHash, date string) {
-	service.Execute(version, commitHash, date, rootCmd)
+	ctx := context.Background()
+	service.Execute(ctx, version, commitHash, date, rootCmd)
 }
 
 func init() {
-	rootCmd.PersistentFlags().StringVar(&service.CfgFile, "config", "", "config file")
-	rootCmd.PersistentFlags().StringVar(&service.CfgString, "config-str", "", "config string")
-	rootCmd.PersistentFlags().StringVar(&service.LogsDir, "log-dir", "", "logs directory")
+	service.AddFlag(rootCmd, "log-dir", "", "log file")
+	service.AddFlag(rootCmd, "config", "", "config file")
+	service.AddFlag(rootCmd, "config-string", "", "config string")
+	service.AddFlag(rootCmd, "script", false, "script")
 }

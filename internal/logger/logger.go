@@ -73,8 +73,14 @@ func initLogger(cfg *Config) (*zap.Logger, error) {
 			Compress:   cfg.Compress,
 			MaxAge:     cfg.MaxAge,
 		})
+
+		log.Printf("using logger to file: %s\n", filepath.Join(cfg.LogDir, cfg.Filename))
 	}
-	log.Printf("using logger to stdout: %v\n", cfg.Stdout)
+
+	if cfg.Stdout {
+		log.Printf("using logger to stdout\n")
+	}
+
 	return zap.New(zapcore.NewCore(zapcore.NewConsoleEncoder(encoderCfg), writeSyncer, zapcore.InfoLevel)), nil
 }
 
