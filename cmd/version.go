@@ -1,7 +1,6 @@
 package cmd
 
 import (
-	"context"
 	"github.com/dyammarcano/application-manager/internal/service"
 	"github.com/spf13/cobra"
 )
@@ -24,7 +23,7 @@ func init() {
 	rootCmd.AddCommand(versionCmd)
 }
 
-func versionCall(_ context.Context) error {
+func versionCall() error {
 	service.AppVersion().String()
 	return nil
 }

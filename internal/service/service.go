@@ -5,6 +5,8 @@ import (
 	"context"
 	"fmt"
 	"github.com/dyammarcano/application-manager/internal/algorithm/encoding"
+	"github.com/dyammarcano/application-manager/internal/cache"
+	"github.com/dyammarcano/application-manager/internal/logger"
 	"github.com/dyammarcano/application-manager/internal/metadata"
 	"github.com/fsnotify/fsnotify"
 	"github.com/spf13/cobra"
@@ -35,7 +37,7 @@ var (
 type (
 	cfgSource int
 
-	Runner func(ctx context.Context) error
+	Runner func() error
 
 	Application struct {
 		errChan   chan error
@@ -44,14 +46,17 @@ type (
 		wGroup    sync.WaitGroup
 		metadata  *metadata.Metadata
 		services  map[string]Runner
-		mutex     sync.Mutex
+		mutex     sync.RWMutex
 		cfgSource cfgSource
+		zlog      *logger.ZapLogger
+		v3c       *cache.V3Cache
 	}
 )
 
 // setup initializes the service manager
 func setup(version, commitHash, date string) {
 	ctx, ccf := context.WithCancelCause(context.Background())
+	setupOsExitHandler()
 
 	svc = &Application{
 		errChan:  make(chan error),
@@ -59,11 +64,9 @@ func setup(version, commitHash, date string) {
 		ctx:      ctx,
 		ccf:      ccf,
 		services: make(map[string]Runner),
-		mutex:    sync.Mutex{},
+		mutex:    sync.RWMutex{},
 		metadata: initMetadata(version, commitHash, date),
 	}
-
-	setupOsExitHandler()
 
 	svc.errorsHandler()
 }
@@ -75,7 +78,7 @@ func setupOsExitHandler() {
 		signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
 
 		<-sigChan
-		log.Printf("service: [%s] exiting...", svc.metadata.ApplicationVersion)
+		log.Printf("receiving signal to gracefully exiting")
 		os.Exit(1)
 	}()
 }
@@ -102,6 +105,14 @@ func errAndExit(err any) {
 		fmt.Println(err)
 		os.Exit(1)
 	}
+}
+
+func Logger() *logger.ZapLogger {
+	return svc.zlog
+}
+
+func Context() context.Context {
+	return svc.ctx
 }
 
 // Execute creates a new service manager
@@ -139,7 +150,7 @@ func (a *Application) registerService(serviceName string, runner Runner) {
 	a.mutex.Lock()
 
 	a.services[serviceName] = runner
-	log.Println("service registered: ", serviceName)
+	log.Printf("service registered: [%s]\n", serviceName)
 }
 
 // executeInGoRoutine executes a service in a go routine and returns the error in the error channel
@@ -149,7 +160,7 @@ func (a *Application) executeInGoRoutine(fn Runner) {
 	go func() {
 		defer a.wGroup.Done()
 
-		a.errChan <- fn(a.ctx)
+		a.errChan <- fn()
 	}()
 }
 
@@ -157,8 +168,10 @@ func (a *Application) executeInGoRoutine(fn Runner) {
 func (a *Application) runServices() {
 	if len(a.services) > 0 {
 		a.chooseConfig()
+		a.setupLogger()
 		for name := range a.services {
 			if runner, exist := a.services[name]; exist {
+				log.Printf("starting service: [%s]\n", name)
 				a.executeInGoRoutine(runner)
 			}
 		}
@@ -172,9 +185,7 @@ func (a *Application) chooseConfig() {
 
 	if CfgString != "" {
 		a.cfgSource = stringCfg
-		if err := a.stringConfig(CfgString); err != nil {
-			a.ccf(err)
-		}
+		a.stringConfig(CfgString)
 		return
 	}
 
@@ -186,6 +197,23 @@ func (a *Application) chooseConfig() {
 
 	a.cfgSource = cfgFile
 	a.loadConfigFile()
+}
+
+// setupLogger check if logger are set in config or by commanf flag
+func (a *Application) setupLogger() {
+	elogPath := viper.GetString("logPath")
+	if LogsDir != "" || elogPath != "" {
+		cfg := logger.NewDefaultConfig()
+		if err := cfg.SetPath(LogsDir, "", ""); err != nil {
+			a.ccf(err)
+		}
+
+		ll, err := logger.NewLogger(cfg)
+		if err != nil {
+			a.ccf(err)
+		}
+		a.zlog = ll
+	}
 }
 
 // errorsHandler handles the errors in the error channel
@@ -228,18 +256,16 @@ func (a *Application) loadConfigFile() {
 }
 
 // stringConfig loads the config from a string
-func (a *Application) stringConfig(data string) error {
+func (a *Application) stringConfig(data string) {
 	deserialized, err := encoding.Deserialize(data)
 	if err != nil {
-		return err
+		a.ccf(err)
 	}
 
 	viper.SetConfigType("json")
 	if err = viper.ReadConfig(bytes.NewBuffer([]byte(deserialized))); err != nil {
-		return err
+		a.ccf(err)
 	}
-
-	return nil
 }
 
 // watchConfig watches the config file for changes
@@ -249,7 +275,7 @@ func (a *Application) watchConfig() {
 	if a.cfgSource != stringCfg {
 		viper.WatchConfig()
 		viper.OnConfigChange(func(e fsnotify.Event) {
-			fmt.Println("Config file changed:", e.Name)
+			fmt.Println("config file changed:", e.Name)
 		})
 	}
 }
@@ -258,7 +284,7 @@ func (a *Application) watchConfig() {
 func (a *Application) generateScript() {
 	for name := range a.services {
 		if _, exist := a.services[name]; exist {
-			fmt.Println("Generating script for service: ", name)
+			fmt.Println("generating script for service: ", name)
 			// generate script
 			// get service name
 			// get service config and serialize it

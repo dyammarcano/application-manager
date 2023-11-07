@@ -1,11 +1,11 @@
 package cmd
 
 import (
-	"context"
+	"fmt"
+	"github.com/dyammarcano/application-manager/internal/logger"
 	"github.com/dyammarcano/application-manager/internal/service"
 	"github.com/oklog/ulid/v2"
 	"github.com/spf13/cobra"
-	"log"
 	"time"
 )
 
@@ -19,16 +19,16 @@ Cobra is a CLI library for Go that empowers applications.
 This service is a tool to generate the needed files
 to quickly create a Cobra service.`,
 	Run: func(cmd *cobra.Command, args []string) {
-		service.RegisterService("all services", func(ctx context.Context) error {
-			ticker := time.NewTicker(5 * time.Second)
+		service.RegisterService("main service", func() error {
+			ticker := time.NewTicker(1 * time.Second)
 			defer ticker.Stop()
 
 			for {
 				select {
-				case <-ctx.Done():
-					return ctx.Err()
+				case <-service.Context().Done():
+					return service.Context().Err()
 				case <-ticker.C:
-					log.Print("simulate work: ", ulid.Make().String())
+					logger.Debug(fmt.Sprintf("simulate work: %s", ulid.Make()))
 				}
 			}
 		})
@@ -41,6 +41,6 @@ func Execute(version, commitHash, date string) {
 
 func init() {
 	rootCmd.PersistentFlags().StringVar(&service.CfgFile, "config", "", "config file")
-	rootCmd.PersistentFlags().StringVar(&service.CfgString, "config-string", "", "config string")
+	rootCmd.PersistentFlags().StringVar(&service.CfgString, "config-str", "", "config string")
 	rootCmd.PersistentFlags().StringVar(&service.LogsDir, "logs", "", "logs directory")
 }
