@@ -158,11 +158,6 @@ func RegisterService(serviceName string, runner Runner) {
 	ms.registerService(serviceName, runner)
 }
 
-// GetContext returns global context
-func GetContext() context.Context {
-	return ms.ctx
-}
-
 // GetRandomValue returns a random guid like ulid, uuid, string, etc
 func GetRandomValue(name string) string {
 	switch name {
