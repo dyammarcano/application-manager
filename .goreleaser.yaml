@@ -10,13 +10,12 @@ builds:
     goos:
       - linux
       - windows
-      - darwin
     goarch:
       - amd64
     ldflags:
       - -s -w -X 'main.Version={{.Version}}' -X 'main.CommitHash={{.FullCommit}}' -X 'main.Date={{.Date}}'
     env:
-      - CGO_ENABLED=0
+      - CGO_ENABLED=1
 
 archives:
   - format: tar.gz
@@ -32,7 +31,10 @@ archives:
     format_overrides:
       - goos: windows
         format: zip
-
+checksum:
+    name_template: 'checksums.txt'
+snapshot:
+    name_template: "{{ incpatch .Version }}-next"
 changelog:
   sort: asc
   filters:
