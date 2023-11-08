@@ -1,4 +1,5 @@
 [![Lint](https://github.com/dyammarcano/application-manager/actions/workflows/lint.yaml/badge.svg)](https://github.com/dyammarcano/application-manager/actions/workflows/lint.yaml)
+[![Release binary builder](https://github.com/dyammarcano/application-manager/actions/workflows/release.yml/badge.svg)](https://github.com/dyammarcano/application-manager/actions/workflows/release.yml)
 
 # cli template using custom cobra cli
 
