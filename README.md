@@ -2,7 +2,6 @@
 
 ## Todo
 
-
 ## Components
 
 this example illustrates how to use the following components:
@@ -10,7 +9,6 @@ this example illustrates how to use the following components:
 - service.AddFlag (to add flags to the service and the command)
 - service.RegisterService (to register a service)
 - service.Execute (to execute the service)
-
 
 ```go
 package cmd

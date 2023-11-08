@@ -91,7 +91,7 @@ func SetValue(name string, value any) {
 
 // setupOsExitHandler sets up the os exit handler
 func setupOsExitHandler(ctx context.Context) {
-	sigChan := make(chan os.Signal)
+	sigChan := make(chan os.Signal, 1)
 	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
 
 	go func() {
