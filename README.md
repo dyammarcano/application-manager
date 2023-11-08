@@ -1,3 +1,5 @@
+[![Lint](https://github.com/dyammarcano/application-manager/actions/workflows/lint.yaml/badge.svg)](https://github.com/dyammarcano/application-manager/actions/workflows/lint.yaml)
+
 # cli template using custom cobra cli
 
 ## Todo
