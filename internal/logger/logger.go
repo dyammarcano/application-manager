@@ -12,28 +12,30 @@ import (
 
 var (
 	ErrorLoggerConfigNotValidated = fmt.Errorf("logger config not validated")
-	ll                            *zap.Logger
+	zl                            *zap.Logger
 )
 
 type (
 	ZapLogger struct{}
 )
 
-func NewLoggerDefault() (*zap.Logger, error) {
+func NewLoggerDefault() error {
 	ll, err := initLoggerDefault()
 	if err != nil {
-		return nil, err
+		return err
 	}
 
-	return ll, nil
+	zl = ll
+	return nil
 }
 
-func NewLogger(cfg *Config) (*zap.Logger, error) {
+func NewLogger(cfg *Config) error {
 	ll, err := initLogger(cfg)
 	if err != nil {
-		return nil, err
+		return err
 	}
-	return ll, nil
+	zl = ll
+	return nil
 }
 
 func initLoggerDefault() (*zap.Logger, error) {
@@ -71,25 +73,35 @@ func initLogger(cfg *Config) (*zap.Logger, error) {
 			Compress:   cfg.Compress,
 			MaxAge:     cfg.MaxAge,
 		})
+
+		log.Printf("[stage 0] using logger to file: %s\n", filepath.Join(cfg.LogDir, cfg.Filename))
 	}
-	log.Printf("using logger to stdout: %v\n", cfg.Stdout)
+
+	if cfg.Stdout {
+		log.Printf("[stage 0] using logger to stdout\n")
+	}
+
 	return zap.New(zapcore.NewCore(zapcore.NewConsoleEncoder(encoderCfg), writeSyncer, zapcore.InfoLevel)), nil
 }
 
 func Info(format string, args ...any) {
-	ll.Info(fmt.Sprintf(format, args...))
+	zl.Info(fmt.Sprintf(format, args...))
 }
 
-func Error(format string, args ...any) {
-	ll.Error(fmt.Sprintf(format, args...))
-}
-
-func Debug(format string, args ...any) {
+func InfoAndPrint(format string, args ...any) {
 	msg := fmt.Sprintf(format, args...)
-	ll.Debug(msg)
+	zl.Info(msg)
 	fmt.Println(msg)
 }
 
+func Error(format string, args ...any) {
+	zl.Error(fmt.Sprintf(format, args...))
+}
+
+func Debug(format string, args ...any) {
+	zl.Debug(fmt.Sprintf(format, args...))
+}
+
 func Warn(format string, args ...any) {
-	ll.Warn(fmt.Sprintf(format, args...))
+	zl.Warn(fmt.Sprintf(format, args...))
 }

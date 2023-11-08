@@ -6,11 +6,13 @@ import (
 )
 
 func TestDefaultLogger(t *testing.T) {
-	ll, err := NewLoggerDefault()
+	err := NewLoggerDefault()
 	assert.Nil(t, err)
 
-	ll.Info("test")
-	ll.Error("test")
+	Info("test")
+	Error("test")
+	Debug("test")
+	Warn("test")
 }
 
 func TestNewLogger(t *testing.T) {
@@ -18,9 +20,10 @@ func TestNewLogger(t *testing.T) {
 	err := cfg.SetPath("", "", "test")
 	assert.Nil(t, err)
 
-	ll, err := NewLogger(cfg)
+	err = NewLogger(cfg)
 	assert.Nil(t, err)
 
-	ll.Info("test")
-	ll.Error("test")
+	Info("test")
+	Error("test")
+	Debug("test")
 }

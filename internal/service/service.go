@@ -3,12 +3,15 @@ package service
 import (
 	"bytes"
 	"context"
+	"crypto/sha256"
 	"fmt"
 	"github.com/dyammarcano/application-manager/internal/algorithm/encoding"
 	"github.com/dyammarcano/application-manager/internal/cache"
 	"github.com/dyammarcano/application-manager/internal/logger"
 	"github.com/dyammarcano/application-manager/internal/metadata"
 	"github.com/fsnotify/fsnotify"
+	"github.com/google/uuid"
+	"github.com/oklog/ulid/v2"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 	"log"
@@ -20,66 +23,85 @@ import (
 	"time"
 )
 
-const (
-	cfgEnv cfgSource = iota
-	cfgFile
-	stringCfg
-)
+var ms *ManagerService
 
-var (
-	svc        *Application
-	CfgFile    string
-	CfgString  string
-	ScriptFlag bool
-	LogsDir    string
-)
+func init() {
+	ms = &ManagerService{
+		errChan:  make(chan error),
+		wGroup:   sync.WaitGroup{},
+		services: make(map[string]Runner),
+		mutex:    sync.RWMutex{},
+		v:        viper.New(),
+	}
+}
 
 type (
-	cfgSource int
-
 	Runner func() error
 
-	Application struct {
+	ManagerService struct {
 		errChan   chan error
 		ctx       context.Context
-		ccf       context.CancelCauseFunc
+		causeFunc context.CancelCauseFunc
 		wGroup    sync.WaitGroup
 		metadata  *metadata.Metadata
 		services  map[string]Runner
 		mutex     sync.RWMutex
-		cfgSource cfgSource
-		zlog      *logger.ZapLogger
 		v3c       *cache.V3Cache
+		v         *viper.Viper
 	}
 )
 
 // setup initializes the service manager
-func setup(version, commitHash, date string) {
-	ctx, ccf := context.WithCancelCause(context.Background())
-	setupOsExitHandler()
+func setup(ctx context.Context, version, commitHash, date string) {
+	ms.ctx, ms.causeFunc = context.WithCancelCause(ctx)
+	setupOsExitHandler(ms.ctx)
+	ms.metadata = initMetadata(version, commitHash, date)
+	ms.errorsHandler()
+}
 
-	svc = &Application{
-		errChan:  make(chan error),
-		wGroup:   sync.WaitGroup{},
-		ctx:      ctx,
-		ccf:      ccf,
-		services: make(map[string]Runner),
-		mutex:    sync.RWMutex{},
-		metadata: initMetadata(version, commitHash, date),
+// AddFlag adds a flag to the service manager, it also binds the flag to the viper instance
+func AddFlag(cmd *cobra.Command, name string, defaultValue any, description string) {
+	switch v := defaultValue.(type) {
+	case bool:
+		cmd.PersistentFlags().Bool(name, v, description)
+	case string:
+		cmd.PersistentFlags().String(name, v, description)
+	case int, int8, int16, int32, int64:
+		cmd.PersistentFlags().Int64(name, v.(int64), description)
+	default:
+		fmt.Printf("Invalid type: %s\n", v)
+		os.Exit(1)
 	}
 
-	svc.errorsHandler()
+	if err := ms.v.BindPFlag(name, cmd.PersistentFlags().Lookup(name)); err != nil {
+		cmd.Printf("Error binding flag: %s\n", err)
+		os.Exit(1)
+	}
+}
+
+// GetValue returns the flag value
+func GetValue(name string) any {
+	return ms.v.Get(name)
+}
+
+// SetValue sets the flag value
+func SetValue(name string, value any) {
+	ms.v.Set(name, value)
 }
 
 // setupOsExitHandler sets up the os exit handler
-func setupOsExitHandler() {
-	go func() {
-		sigChan := make(chan os.Signal)
-		signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
+func setupOsExitHandler(ctx context.Context) {
+	sigChan := make(chan os.Signal, 1)
+	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
 
-		<-sigChan
-		log.Printf("receiving signal to gracefully exiting")
-		os.Exit(1)
+	go func() {
+		select {
+		case <-sigChan:
+			log.Printf("receiving signal to gracefully exiting")
+			os.Exit(1)
+		case <-ctx.Done():
+			return
+		}
 	}()
 }
 
@@ -101,77 +123,86 @@ func initMetadata(version, commitHash, date string) *metadata.Metadata {
 
 // errAndExit prints the error and exits the service
 func errAndExit(err any) {
-	if svc == nil {
+	if ms == nil {
 		fmt.Println(err)
 		os.Exit(1)
 	}
 }
 
-func Logger() *logger.ZapLogger {
-	return svc.zlog
-}
-
+// Context returns the global context
 func Context() context.Context {
-	return svc.ctx
+	return ms.ctx
 }
 
 // Execute creates a new service manager
-func Execute(version, commitHash, date string, cmd *cobra.Command) {
-	setup(version, commitHash, date)
-	svc.errChan <- cmd.ExecuteContext(svc.ctx)
+func Execute(ctx context.Context, version, commitHash, date string, cmd *cobra.Command) {
+	setup(ctx, version, commitHash, date)
+	ms.errChan <- cmd.ExecuteContext(ms.ctx)
 
-	if ScriptFlag == true {
-		svc.generateScript()
+	if ms.v.GetBool("script") == true {
+		ms.generateScript()
 	}
 
-	svc.runServices()
+	ms.runServices()
 }
 
 // AppVersion returns the service version
 func AppVersion() *metadata.Metadata {
 	errAndExit("service instance is not initialized")
-	return svc.metadata
+	return ms.metadata
 }
 
 // RegisterService adds a service to the service to be executed
 func RegisterService(serviceName string, runner Runner) {
 	errAndExit("service instance is not initialized")
-	svc.registerService(serviceName, runner)
+	ms.registerService(serviceName, runner)
 }
 
-// GetContext returns global context
-func GetContext() context.Context {
-	return svc.ctx
+// GetRandomValue returns a random guid like ulid, uuid, string, etc
+func GetRandomValue(name string) string {
+	switch name {
+	case "ulid":
+		return ulid.Make().String()
+	case "uuid":
+		return uuid.New().String()
+	case "random":
+		h := sha256.New()
+		h.Write([]byte(ulid.Make().String()))
+		return fmt.Sprintf("%x", h.Sum(nil))
+	default:
+		return ""
+	}
 }
 
 // RegisterService adds a service to the service to be executed
-func (a *Application) registerService(serviceName string, runner Runner) {
-	defer a.mutex.Unlock()
+func (a *ManagerService) registerService(serviceName string, runner Runner) {
 	a.mutex.Lock()
+	defer a.mutex.Unlock()
 
 	a.services[serviceName] = runner
-	log.Printf("service registered: [%s]\n", serviceName)
+	log.Printf("[stage 0] service registered: [%s]\n", serviceName)
 }
 
 // executeInGoRoutine executes a service in a go routine and returns the error in the error channel
-func (a *Application) executeInGoRoutine(fn Runner) {
+func (a *ManagerService) executeInGoRoutine(fn Runner) {
 	a.wGroup.Add(1)
 
 	go func() {
 		defer a.wGroup.Done()
 
+		log.Printf("ready=1\n")
 		a.errChan <- fn()
 	}()
 }
 
 // runServices executes all the services registered in the service
-func (a *Application) runServices() {
+func (a *ManagerService) runServices() {
 	if len(a.services) > 0 {
 		a.chooseConfig()
 		a.setupLogger()
 		for name := range a.services {
 			if runner, exist := a.services[name]; exist {
-				log.Printf("starting service: [%s]\n", name)
+				log.Printf("[stage 1] starting service: [%s]\n", name)
 				a.executeInGoRoutine(runner)
 			}
 		}
@@ -180,51 +211,56 @@ func (a *Application) runServices() {
 }
 
 // chooseConfig chooses the config to be used
-func (a *Application) chooseConfig() {
+func (a *ManagerService) chooseConfig() {
 	go a.watchConfig()
 
-	if CfgString != "" {
-		a.cfgSource = stringCfg
-		a.stringConfig(CfgString)
+	configStr := ms.v.GetString("config-string")
+
+	if configStr != "" {
+		a.stringConfig(configStr)
 		return
 	}
 
-	if CfgFile == "" {
-		a.cfgSource = cfgEnv
+	cfgFile := ms.v.GetString("config")
+
+	if cfgFile == "" {
 		a.loadConfigFileEnv()
 		return
 	}
 
-	a.cfgSource = cfgFile
-	a.loadConfigFile()
+	a.loadConfigFile(cfgFile)
 }
 
 // setupLogger check if logger are set in config or by commanf flag
-func (a *Application) setupLogger() {
-	elogPath := viper.GetString("logPath")
-	if LogsDir != "" || elogPath != "" {
-		cfg := logger.NewDefaultConfig()
-		if err := cfg.SetPath(LogsDir, "", ""); err != nil {
-			a.ccf(err)
-		}
+func (a *ManagerService) setupLogger() {
+	logPath := a.v.GetString("log-dir")
 
-		ll, err := logger.NewLogger(cfg)
-		if err != nil {
-			a.ccf(err)
+	if logPath == "" {
+		if err := logger.NewLoggerDefault(); err != nil {
+			a.causeFunc(err)
 		}
-		a.zlog = ll
+		return
+	}
+
+	cfg := logger.NewDefaultConfig()
+	if err := cfg.SetPath(logPath, "", ""); err != nil {
+		a.causeFunc(err)
+	}
+
+	if err := logger.NewLogger(cfg); err != nil {
+		a.causeFunc(err)
 	}
 }
 
 // errorsHandler handles the errors in the error channel
-func (a *Application) errorsHandler() {
+func (a *ManagerService) errorsHandler() {
 	go func() {
 		for {
 			select {
 			case err := <-a.errChan:
 				if err != nil {
 					fmt.Println(err)
-					a.ccf(err)
+					a.causeFunc(err)
 				}
 			case <-a.ctx.Done():
 				return
@@ -234,54 +270,54 @@ func (a *Application) errorsHandler() {
 }
 
 // loadConfigFileEnv loads the config file from the environment
-func (a *Application) loadConfigFileEnv() {
-	viper.AddConfigPath(".")
-	viper.SetConfigName("app")
-	viper.SetConfigType("env")
-	viper.AutomaticEnv()
+func (a *ManagerService) loadConfigFileEnv() {
+	ms.v.AddConfigPath(".")
+	ms.v.SetConfigName("app")
+	ms.v.SetConfigType("env")
+	ms.v.AutomaticEnv()
 
-	if err := viper.ReadInConfig(); err == nil {
-		log.Printf("Using config file: %s\n", viper.ConfigFileUsed())
+	if err := ms.v.ReadInConfig(); err == nil {
+		log.Printf("[stage 0] using config file: %s\n", ms.v.ConfigFileUsed())
 	}
 }
 
 // loadConfigFile loads the config file from the file system
-func (a *Application) loadConfigFile() {
-	viper.SetConfigFile(CfgFile)
-	viper.AutomaticEnv()
+func (a *ManagerService) loadConfigFile(cfgFile string) {
+	ms.v.SetConfigFile(cfgFile)
+	ms.v.AutomaticEnv()
 
-	if err := viper.ReadInConfig(); err == nil {
-		log.Printf("Using config file: %s\n", viper.ConfigFileUsed())
+	if err := ms.v.ReadInConfig(); err == nil {
+		log.Printf("[stage 0] using config file: %s\n", ms.v.ConfigFileUsed())
 	}
 }
 
 // stringConfig loads the config from a string
-func (a *Application) stringConfig(data string) {
+func (a *ManagerService) stringConfig(data string) {
 	deserialized, err := encoding.Deserialize(data)
 	if err != nil {
-		a.ccf(err)
+		a.causeFunc(err)
 	}
 
-	viper.SetConfigType("json")
-	if err = viper.ReadConfig(bytes.NewBuffer([]byte(deserialized))); err != nil {
-		a.ccf(err)
+	ms.v.SetConfigType("json")
+	if err = ms.v.ReadConfig(bytes.NewBuffer([]byte(deserialized))); err != nil {
+		a.causeFunc(err)
 	}
 }
 
 // watchConfig watches the config file for changes
-func (a *Application) watchConfig() {
+func (a *ManagerService) watchConfig() {
 	<-time.After(5 * time.Second)
 
-	if a.cfgSource != stringCfg {
-		viper.WatchConfig()
-		viper.OnConfigChange(func(e fsnotify.Event) {
-			fmt.Println("config file changed:", e.Name)
+	if ms.v.GetString("config-string") != "" {
+		ms.v.WatchConfig()
+		ms.v.OnConfigChange(func(e fsnotify.Event) {
+			fmt.Println("[stage 0] config file changed:", e.Name)
 		})
 	}
 }
 
 // generateScript generates the script for the service
-func (a *Application) generateScript() {
+func (a *ManagerService) generateScript() {
 	for name := range a.services {
 		if _, exist := a.services[name]; exist {
 			fmt.Println("generating script for service: ", name)
@@ -293,34 +329,18 @@ func (a *Application) generateScript() {
 	}
 }
 
-func (a *Application) checkForUpdates() {
+func (a *ManagerService) checkForUpdates() {
 	// check for updates
 	// download updates
 	// install updates
 }
 
-func (a *Application) validateUpdate() {
+func (a *ManagerService) validateUpdate() {
 	// validate updates
 	// validate config
 }
 
-func (a *Application) downloadUpdate() {
+func (a *ManagerService) downloadUpdate() {
 	// download updates
 	// download config
 }
-
-//func (a *Application) loadScript() {
-//	// load script
-//	// deserialize config
-//	// load config
-//}
-//
-//func (a *Application) runScript() {
-//	// run script
-//	// run service
-//}
-//
-//func (a *Application) stopScript() {
-//	// stop script
-//	// stop service
-//}
