@@ -3,12 +3,15 @@ package service
 import (
 	"bytes"
 	"context"
+	"crypto/sha256"
 	"fmt"
 	"github.com/dyammarcano/application-manager/internal/algorithm/encoding"
 	"github.com/dyammarcano/application-manager/internal/cache"
 	"github.com/dyammarcano/application-manager/internal/logger"
 	"github.com/dyammarcano/application-manager/internal/metadata"
 	"github.com/fsnotify/fsnotify"
+	"github.com/google/uuid"
+	"github.com/oklog/ulid/v2"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 	"log"
@@ -56,8 +59,8 @@ func setup(ctx context.Context, version, commitHash, date string) {
 	ms.errorsHandler()
 }
 
-// AddFlag adds a flag to the service
-func AddFlag(cmd *cobra.Command, name string, defaultValue interface{}, description string) {
+// AddFlag adds a flag to the service manager, it also binds the flag to the viper instance
+func AddFlag(cmd *cobra.Command, name string, defaultValue any, description string) {
 	switch v := defaultValue.(type) {
 	case bool:
 		cmd.PersistentFlags().Bool(name, v, description)
@@ -79,6 +82,11 @@ func AddFlag(cmd *cobra.Command, name string, defaultValue interface{}, descript
 // GetValue returns the flag value
 func GetValue(name string) any {
 	return ms.v.Get(name)
+}
+
+// SetValue sets the flag value
+func SetValue(name string, value any) {
+	ms.v.Set(name, value)
 }
 
 // setupOsExitHandler sets up the os exit handler
@@ -121,6 +129,7 @@ func errAndExit(err any) {
 	}
 }
 
+// Context returns the global context
 func Context() context.Context {
 	return ms.ctx
 }
@@ -154,6 +163,22 @@ func GetContext() context.Context {
 	return ms.ctx
 }
 
+// GetRandomValue returns a random guid like ulid, uuid, string, etc
+func GetRandomValue(name string) string {
+	switch name {
+	case "ulid":
+		return ulid.Make().String()
+	case "uuid":
+		return uuid.New().String()
+	case "random":
+		h := sha256.New()
+		h.Write([]byte(ulid.Make().String()))
+		return fmt.Sprintf("%x", h.Sum(nil))
+	default:
+		return ""
+	}
+}
+
 // RegisterService adds a service to the service to be executed
 func (a *ManagerService) registerService(serviceName string, runner Runner) {
 	a.mutex.Lock()
@@ -165,8 +190,9 @@ func (a *ManagerService) registerService(serviceName string, runner Runner) {
 
 // executeInGoRoutine executes a service in a go routine and returns the error in the error channel
 func (a *ManagerService) executeInGoRoutine(fn Runner) {
+	a.wGroup.Add(1)
+
 	go func() {
-		a.wGroup.Add(1)
 		defer a.wGroup.Done()
 
 		log.Printf("ready=1\n")
@@ -323,19 +349,3 @@ func (a *ManagerService) downloadUpdate() {
 	// download updates
 	// download config
 }
-
-//func (a *ManagerService) loadScript() {
-//	// load script
-//	// deserialize config
-//	// load config
-//}
-//
-//func (a *ManagerService) runScript() {
-//	// run script
-//	// run service
-//}
-//
-//func (a *ManagerService) stopScript() {
-//	// stop script
-//	// stop service
-//}

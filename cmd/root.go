@@ -5,13 +5,12 @@ import (
 	"fmt"
 	"github.com/dyammarcano/application-manager/internal/logger"
 	"github.com/dyammarcano/application-manager/internal/service"
-	"github.com/oklog/ulid/v2"
 	"github.com/spf13/cobra"
 	"time"
 )
 
 var rootCmd = &cobra.Command{
-	Use:   "template-go",
+	Use:   "main",
 	Short: "A brief description of your service",
 	Long: `A longer description that spans multiple lines and likely contains
 examples and usage of using your service. For example:
@@ -45,7 +44,12 @@ func simulateWork() error {
 		case <-service.Context().Done():
 			return service.Context().Err()
 		case <-ticker.C:
-			logger.InfoAndPrint(fmt.Sprintf("simulate work: %s, config value: %v", ulid.Make(), service.GetValue("guid")))
+			logger.InfoAndPrint(fmt.Sprintf("simulate work: uuid: %s, ulid: %s, random: %s, time: %s",
+				service.GetRandomValue("ulid"),
+				service.GetRandomValue("uuid"),
+				service.GetRandomValue("random"),
+				time.Now().Format(time.RFC3339Nano),
+			))
 		}
 	}
 }

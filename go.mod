@@ -6,6 +6,7 @@ require (
 	github.com/dgraph-io/badger/v3 v3.2103.5
 	github.com/dyammarcano/base58 v1.0.0
 	github.com/fsnotify/fsnotify v1.6.0
+	github.com/google/uuid v1.1.2
 	github.com/oklog/ulid/v2 v2.1.0
 	github.com/spf13/cobra v1.7.0
 	github.com/spf13/viper v1.17.0
