@@ -2,17 +2,17 @@ package logger
 
 import (
 	"fmt"
+	"github.com/caarlos0/log"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 	"gopkg.in/natefinch/lumberjack.v2"
-	"log"
 	"os"
 	"path/filepath"
 )
 
 var (
 	ErrorLoggerConfigNotValidated = fmt.Errorf("logger config not validated")
-	zl                            *zap.Logger
+	zapLogger                     *zap.Logger
 )
 
 type (
@@ -25,7 +25,7 @@ func NewLoggerDefault() error {
 		return err
 	}
 
-	zl = ll
+	zapLogger = ll
 	return nil
 }
 
@@ -34,7 +34,7 @@ func NewLogger(cfg *Config) error {
 	if err != nil {
 		return err
 	}
-	zl = ll
+	zapLogger = ll
 	return nil
 }
 
@@ -60,7 +60,7 @@ func initLogger(cfg *Config) (*zap.Logger, error) {
 
 		if _, err := os.Stat(cfg.LogDir); os.IsNotExist(err) {
 			if err := os.MkdirAll(cfg.LogDir, 0755); err != nil {
-				log.Printf("Failed to create log directory: %s", cfg.LogDir)
+				log.Infof("Failed to create log directory: %s", cfg.LogDir)
 				os.Exit(1)
 			}
 		}
@@ -74,34 +74,34 @@ func initLogger(cfg *Config) (*zap.Logger, error) {
 			MaxAge:     cfg.MaxAge,
 		})
 
-		log.Printf("[stage 0] using logger to file: %s\n", filepath.Join(cfg.LogDir, cfg.Filename))
+		log.Infof("[stage 0] using logger to file: %s", filepath.Join(cfg.LogDir, cfg.Filename))
 	}
 
 	if cfg.Stdout {
-		log.Printf("[stage 0] using logger to stdout\n")
+		log.Info("[stage 0] using logger to stdout")
 	}
 
 	return zap.New(zapcore.NewCore(zapcore.NewConsoleEncoder(encoderCfg), writeSyncer, zapcore.InfoLevel)), nil
 }
 
 func Info(format string, args ...any) {
-	zl.Info(fmt.Sprintf(format, args...))
+	zapLogger.Info(fmt.Sprintf(format, args...))
 }
 
 func InfoAndPrint(format string, args ...any) {
 	msg := fmt.Sprintf(format, args...)
-	zl.Info(msg)
+	zapLogger.Info(msg)
 	fmt.Println(msg)
 }
 
 func Error(format string, args ...any) {
-	zl.Error(fmt.Sprintf(format, args...))
+	zapLogger.Error(fmt.Sprintf(format, args...))
 }
 
 func Debug(format string, args ...any) {
-	zl.Debug(fmt.Sprintf(format, args...))
+	zapLogger.Debug(fmt.Sprintf(format, args...))
 }
 
 func Warn(format string, args ...any) {
-	zl.Warn(fmt.Sprintf(format, args...))
+	zapLogger.Warn(fmt.Sprintf(format, args...))
 }

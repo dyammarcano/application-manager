@@ -44,10 +44,9 @@ func simulateWork() error {
 		case <-service.Context().Done():
 			return service.Context().Err()
 		case <-ticker.C:
-			logger.InfoAndPrint(fmt.Sprintf("simulate work: uuid: %s, ulid: %s, random: %s, time: %s",
+			logger.Info(fmt.Sprintf("simulate work: uuid: %s, ulid: %s, time: %s",
 				service.GetRandomValue("ulid"),
 				service.GetRandomValue("uuid"),
-				service.GetRandomValue("random"),
 				time.Now().Format(time.RFC3339Nano),
 			))
 		}
