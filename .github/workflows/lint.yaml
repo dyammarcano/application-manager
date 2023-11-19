@@ -50,7 +50,7 @@ jobs:
           assert-nothing-changed go mod tidy
 
       - name: Install go/vulncheck
-        run: go install golang.org/x/vuln/cmd/govulncheck@latest
+        run: go install golang.org/x/vuln/command/govulncheck@latest
 
       - name: Go vulncheck
         run: govulncheck ./...

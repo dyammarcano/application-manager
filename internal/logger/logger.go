@@ -60,7 +60,7 @@ func initLogger(cfg *Config) (*zap.Logger, error) {
 
 		if _, err := os.Stat(cfg.LogDir); os.IsNotExist(err) {
 			if err := os.MkdirAll(cfg.LogDir, 0755); err != nil {
-				log.Infof("Failed to create log directory: %s", cfg.LogDir)
+				log.Infof("failed to create log directory: %s", cfg.LogDir)
 				os.Exit(1)
 			}
 		}
@@ -74,11 +74,11 @@ func initLogger(cfg *Config) (*zap.Logger, error) {
 			MaxAge:     cfg.MaxAge,
 		})
 
-		log.Infof("[stage 0] using logger to file: %s", filepath.Join(cfg.LogDir, cfg.Filename))
+		log.Infof("using logger to file: %s", filepath.Join(cfg.LogDir, cfg.Filename))
 	}
 
 	if cfg.Stdout {
-		log.Info("[stage 0] using logger to stdout")
+		log.Info("using logger to stdout")
 	}
 
 	return zap.New(zapcore.NewCore(zapcore.NewConsoleEncoder(encoderCfg), writeSyncer, zapcore.InfoLevel)), nil

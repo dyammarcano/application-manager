@@ -9,6 +9,7 @@ import (
 	"github.com/charmbracelet/lipgloss"
 	"github.com/dyammarcano/application-manager/internal/algorithm/encoding"
 	"github.com/dyammarcano/application-manager/internal/cache"
+	"github.com/dyammarcano/application-manager/internal/command"
 	"github.com/dyammarcano/application-manager/internal/logger"
 	"github.com/dyammarcano/application-manager/internal/metadata"
 	"github.com/fsnotify/fsnotify"
@@ -40,12 +41,16 @@ func init() {
 		log.WithError(err).Warn("failed to set GOMAXPROCS")
 	}
 
+	log.IncreasePadding()
+	log.Infof("starting service manager")
+
 	ms = &ManagerService{
 		errChan:  make(chan error),
 		wGroup:   sync.WaitGroup{},
 		services: make(map[string]Runner),
 		mutex:    sync.RWMutex{},
 		v:        viper.New(),
+		options:  make(map[string]any),
 	}
 }
 
@@ -62,6 +67,7 @@ type (
 		mutex     sync.RWMutex
 		v3c       *cache.V3Cache
 		v         *viper.Viper
+		options   map[string]any
 	}
 )
 
@@ -149,9 +155,10 @@ func Context() context.Context {
 }
 
 // Execute creates a new service manager
-func Execute(ctx context.Context, version, commitHash, date string, cmd *cobra.Command) {
+func Execute(ctx context.Context, version, commitHash, date string, buildCommand *command.BuildCommand) {
 	setup(ctx, version, commitHash, date)
-	ms.errChan <- cmd.ExecuteContext(ms.ctx)
+	ms.options = buildCommand.BuildOptions.Options
+	ms.errChan <- buildCommand.Cmd.ExecuteContext(ms.ctx)
 
 	if ms.v.GetBool("script") == true {
 		ms.generateScript()
@@ -194,7 +201,7 @@ func (a *ManagerService) registerService(serviceName string, runner Runner) {
 	defer a.mutex.Unlock()
 
 	a.services[serviceName] = runner
-	log.Infof("[stage 0] service registered: [%s]", serviceName)
+	log.Infof("service registered: [%s]", serviceName)
 }
 
 // executeInGoRoutine executes a service in a go routine and returns the error in the error channel
@@ -205,6 +212,7 @@ func (a *ManagerService) executeInGoRoutine(fn Runner) {
 		defer a.wGroup.Done()
 
 		log.Infof("ready=1")
+		log.DecreasePadding()
 		a.errChan <- fn()
 	}()
 }
@@ -216,7 +224,7 @@ func (a *ManagerService) runServices() {
 		a.setupLogger()
 		for name := range a.services {
 			if runner, exist := a.services[name]; exist {
-				log.Infof("[stage 1] starting service: [%s]", name)
+				log.Infof("starting service: [%s]", name)
 				a.executeInGoRoutine(runner)
 			}
 		}
@@ -291,7 +299,7 @@ func (a *ManagerService) loadConfigFileEnv() {
 	ms.v.AutomaticEnv()
 
 	if err := ms.v.ReadInConfig(); err == nil {
-		log.Infof("[stage 0] using config file: %s", ms.v.ConfigFileUsed())
+		log.Infof("using config file: %s", ms.v.ConfigFileUsed())
 	}
 }
 
@@ -301,7 +309,7 @@ func (a *ManagerService) loadConfigFile(cfgFile string) {
 	ms.v.AutomaticEnv()
 
 	if err := ms.v.ReadInConfig(); err == nil {
-		log.Infof("[stage 0] using config file: %s", ms.v.ConfigFileUsed())
+		log.Infof("using config file: %s", ms.v.ConfigFileUsed())
 	}
 }
 
@@ -325,7 +333,7 @@ func (a *ManagerService) watchConfig() {
 	if ms.v.GetString("config-string") != "" {
 		ms.v.WatchConfig()
 		ms.v.OnConfigChange(func(e fsnotify.Event) {
-			fmt.Println("[stage 0] config file changed:", e.Name)
+			log.Infof("config file changed:", e.Name)
 		})
 	}
 }
@@ -334,7 +342,7 @@ func (a *ManagerService) watchConfig() {
 func (a *ManagerService) generateScript() {
 	for name := range a.services {
 		if _, exist := a.services[name]; exist {
-			fmt.Println("generating script for service: ", name)
+			log.Infof("generating script for service: ", name)
 			// generate script
 			// get service name
 			// get service config and serialize it
@@ -344,17 +352,20 @@ func (a *ManagerService) generateScript() {
 }
 
 func (a *ManagerService) checkForUpdates() {
+	log.Infof("checking for updates")
 	// check for updates
 	// download updates
 	// install updates
 }
 
 func (a *ManagerService) validateUpdate() {
+	log.Infof("validating updates")
 	// validate updates
 	// validate config
 }
 
 func (a *ManagerService) downloadUpdate() {
+	log.Infof("downloading updates")
 	// download updates
 	// download config
 }
