@@ -4,20 +4,17 @@ import (
 	"fmt"
 	"github.com/spf13/cobra"
 	"os"
-	"time"
 )
 
 type (
 	BuildCommand struct {
-		Cmd          *cobra.Command
-		BuildOptions *BuildOptions
+		Cmd     *cobra.Command
+		Options []State
 	}
 
-	BuildOptions struct {
-		config  string
-		ids     []string
-		Options map[string]any
-		timeout time.Duration
+	State struct {
+		Touched any
+		Flag    Flag
 	}
 
 	Flag struct {
@@ -29,11 +26,9 @@ type (
 
 func NewCommandBuilder(name string) *BuildCommand {
 	return &BuildCommand{
+		Options: make([]State, 0),
 		Cmd: &cobra.Command{
 			Use: name,
-		},
-		BuildOptions: &BuildOptions{
-			Options: make(map[string]any),
 		},
 	}
 }
@@ -41,8 +36,8 @@ func NewCommandBuilder(name string) *BuildCommand {
 func (c *BuildCommand) AddCommand(buildCommand *BuildCommand) *BuildCommand {
 	c.Cmd.AddCommand(buildCommand.Cmd)
 	// add options to parent command
-	for k, v := range buildCommand.BuildOptions.Options {
-		c.BuildOptions.Options[k] = v
+	for k, v := range buildCommand.Options {
+		c.Options[k] = v
 	}
 	return c
 }
@@ -72,7 +67,18 @@ func (c *BuildCommand) AddCommandFlag(name string, defaultValue any, description
 }
 
 func (c *BuildCommand) addCommandFlag(name string, defaultValue any, description string, persistent bool) *BuildCommand {
-	c.BuildOptions.Options[name] = defaultValue
+	state := State{
+		Touched: true,
+		Flag: Flag{
+			Name:        name,
+			Description: description,
+			Default:     defaultValue,
+			Value:       defaultValue,
+		},
+	}
+
+	c.Options = append(c.Options, state)
+
 	switch v := defaultValue.(type) {
 	case bool:
 		if persistent {
@@ -123,10 +129,6 @@ func (c *BuildCommand) SilentErrors() *BuildCommand {
 func (c *BuildCommand) InitDefaultHelpFlag() *BuildCommand {
 	c.Cmd.InitDefaultHelpFlag()
 	return c
-}
-
-func (c *BuildCommand) Validate() error {
-	return c.Cmd.ValidateArgs(c.BuildOptions.ids)
 }
 
 func (c *BuildCommand) Build() *BuildCommand {

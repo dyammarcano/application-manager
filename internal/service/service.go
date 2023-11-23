@@ -50,7 +50,7 @@ func init() {
 		services: make(map[string]Runner),
 		mutex:    sync.RWMutex{},
 		v:        viper.New(),
-		options:  make(map[string]any),
+		options:  make([]command.State, 0),
 	}
 }
 
@@ -67,7 +67,7 @@ type (
 		mutex     sync.RWMutex
 		v3c       *cache.V3Cache
 		v         *viper.Viper
-		options   map[string]any
+		options   []command.State
 	}
 )
 
@@ -157,7 +157,7 @@ func Context() context.Context {
 // Execute creates a new service manager
 func Execute(ctx context.Context, version, commitHash, date string, buildCommand *command.BuildCommand) {
 	setup(ctx, version, commitHash, date)
-	ms.options = buildCommand.BuildOptions.Options
+	ms.options = buildCommand.Options
 	ms.errChan <- buildCommand.Cmd.ExecuteContext(ms.ctx)
 
 	if ms.v.GetBool("script") == true {
