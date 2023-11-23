@@ -2,24 +2,24 @@ package cmd
 
 import (
 	"fmt"
+	"github.com/dyammarcano/application-manager/internal/command"
 	"github.com/dyammarcano/application-manager/internal/service"
 	"github.com/spf13/cobra"
 	"time"
 )
 
-var clientCmd = &cobra.Command{
-	Use:   "client",
-	Short: "A brief description of your command",
-	Long: `A longer description that spans multiple lines and likely contains examples
+var clientCmd = command.NewCommandBuilder("client").
+	AddCommandShortMessage("A brief description of your command").
+	AddCommandLongMessage(`A longer description that spans multiple lines and likely contains examples
 and usage of using your command. For example:
 
 Cobra is a CLI library for Go that empowers applications.
 This service is a tool to generate the needed files
-to quickly create a Cobra service.`,
-	Run: func(cmd *cobra.Command, args []string) {
+to quickly create a Cobra service.`).
+	AddCommandRun(func(cmd *cobra.Command, args []string) {
 		service.RegisterService("client api", callClient)
-	},
-}
+	}).
+	Build()
 
 func init() {
 	rootCmd.AddCommand(clientCmd)
